@@ -1,0 +1,7 @@
+".\Objects\init380.obj",
+".\Objects\main.obj",
+".\SYS19_v2.LIB" 
+TO ".\Objects\Lcd8bitC380Basic" 
+PRINT(".\Listings\Lcd8bitC380Basic.m51") RAMSIZE(256) 
+DISABLEWARNING (16) 
+XDATA( 0X0000-0X0FFF )
