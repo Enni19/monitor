@@ -1,0 +1,597 @@
+C51 COMPILER V9.57.0.0   MAIN                                                              04/27/2023 09:53:39 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c LARGE OPTIMIZE(7,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listing
+                    -s\main.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "compiler_defs.h"
+   2          #include "C8051F380_defs.h"
+   3          #include "initsys.h"
+   4          #include "argb2.h"
+   5          #include <math.h> 
+   6          #define READ_FROM_TEMP 19 
+   7          #define READ_FROM_AMPLIFIER  20 
+   8          
+   9          float goertzel_mag(int numSamples,int TARGET_FREQUENCY,int SAMPLING_RATE);
+  10          int ADC_IN(int num);
+  11          int IsAlarmDetected(int numofinstans,int mag);
+  12          int IsAlarmDetected2();
+  13          int IsAlarmDetected_trial();
+  14          
+  15          void Init_Device(void);
+  16          void mp3();
+  17          void Start_Working(void);
+  18          void MenuScreen();
+  19          void Font_test(void);
+  20          void Move(void);
+  21          void temperature(void);
+  22          void Crying(void);
+  23          
+  24          #define NUM_OF_FREQ_TO_CHECK 4 
+  25          xdata int  NumInstans[NUM_OF_FREQ_TO_CHECK]; 
+  26          struct WaveProperty  
+  27          {
+  28             int freq; 
+  29             int Th_mag;
+  30             int Th_NumInstans;
+  31          };
+  32          
+  33          //xdata struct WaveProperty wave_property_arr[NUM_OF_FREQ_TO_CHECK]={{700,100,20},{900,100,20}};
+  34          //xdata struct WaveProperty wave_property_arr[NUM_OF_FREQ_TO_CHECK]={{700,70,8},{800,100,15},{900,60,9}};
+  35          xdata struct WaveProperty wave_property_arr[NUM_OF_FREQ_TO_CHECK]={{700,70,8},{800,100,15},{1000,60,9},{90
+             -0,60,9}};// frequencies
+  36          //xdata struct WaveProperty wave_property_arr[NUM_OF_FREQ_TO_CHECK]={{353,20,30},{905,20,20}};            
+             -     
+  37          //xdata struct WaveProperty wave_property_arr[NUM_OF_FREQ_TO_CHECK]={{800,100,20}};
+  38          //xdata struct WaveProperty wave_property_arr[NUM_OF_FREQ_TO_CHECK]={{800,150,20}};
+  39          xdata char my_string[20];          
+  40          xdata U16 data_in[210];
+  41          xdata num=0;
+  42          
+  43          
+  44          
+  45          void PUTCHAR1(char tav)
+  46          {
+  47   1        SBUF1=tav;
+  48   1        while((SCON1&2)==0); //(TI1==0)
+  49   1        SCON1=SCON1&(~2);    //TI1 = 0;  
+  50   1      }
+  51          
+  52          void PUTCHAR0(char tav)
+C51 COMPILER V9.57.0.0   MAIN                                                              04/27/2023 09:53:39 PAGE 2   
+
+  53          {
+  54   1        SBUF0=tav;
+  55   1        while(TI0==0);
+  56   1        TI0=0;
+  57   1      }
+  58          
+  59          
+  60          extern void Init_Device(void);
+  61          
+  62          int i;
+  63          code char playtrack1[8]={0x7E,0xFF,0x06,0x0F,0x00,0x01,0x02,0xEF}; 
+  64          
+  65          char playtrack[8];
+  66          void play_song(char dir,char song_num)
+  67          {
+  68   1        playtrack[5]=dir;
+  69   1        playtrack[6]=song_num;
+  70   1        for (i=0;i<8;i++)
+  71   1        PUTCHAR1 (playtrack[i]);
+  72   1      }
+  73          
+  74          void main(void)
+  75          {
+  76   1        S16 x=0, y=0,  ButtonNum;
+  77   1        Init_Device();
+  78   1        initSYS();
+  79   1      
+  80   1        for (i=0;i<8;i++)
+  81   1        playtrack[i]=playtrack1[i]; 
+  82   1        
+  83   1        
+  84   1        
+  85   1        
+  86   1        
+  87   1        MenuScreen();
+  88   1        
+  89   1      
+  90   1        while(1) {
+  91   2          if(!T_IRQ) {
+  92   3            delay_ms(10);
+  93   3            x = ReadTouchX();
+  94   3            y = ReadTouchY();
+  95   3            LCD_setCursor (25, 100);
+  96   3            ButtonNum= ButtonTouch(x, y);
+  97   3            printf("x=%d y=%d  b=%d   ", x, y,ButtonNum);
+  98   3      
+  99   3            if(ButtonNum==0){  
+ 100   4              Start_Working();
+ 101   4              MenuScreen();
+ 102   4            }
+ 103   3            else if(ButtonNum==1){ 
+ 104   4              mp3();
+ 105   4              MenuScreen();
+ 106   4            }
+ 107   3            else if(ButtonNum==2){
+ 108   4              Move();
+ 109   4              MenuScreen();       
+ 110   4            }
+ 111   3            else if(ButtonNum==3) {
+ 112   4              temperature();
+ 113   4              MenuScreen();
+ 114   4            }
+C51 COMPILER V9.57.0.0   MAIN                                                              04/27/2023 09:53:39 PAGE 3   
+
+ 115   3            else if(ButtonNum==4) {
+ 116   4              Crying();
+ 117   4              MenuScreen();
+ 118   4            }
+ 119   3          } 
+ 120   2        }
+ 121   1      }
+ 122          
+ 123          void MenuScreen() {
+ 124   1        LCD_fillScreen(BLACK);
+ 125   1        LCD_print2C(0, 10,"BABY MONITOR" , 4,RED, BLACK);   //hebrew    
+ 126   1        LCD_print2C (0 ,50 ,"YUVAL & ENNI",3, WHITE, BLACK);
+ 127   1        LCD_clearButton();  
+ 128   1        LCD_drawButton(0,10,  150,60,60, 10, CYAN,BLACK,"RUN!",2);  
+ 129   1        LCD_drawButton(1,80, 150,60,60, 10, BLUE,YELLOW,"MP3",2);
+ 130   1        LCD_drawButton(2,150, 150,60,60, 10, GREEN,BLACK,"Move",2);
+ 131   1        LCD_drawButton(3,217, 150,66,60, 10, YELLOW,BLACK,"Temperature",1);
+ 132   1        LCD_drawButton(4,290, 150,60,60, 10, PINK,BLACK,"Crying",2);
+ 133   1        LCD_setText2Color(WHITE,BLACK);
+ 134   1      }
+ 135          
+ 136          
+ 137          
+ 138          
+ 139          void Start_Working(void) {                      //  Start Working
+ 140   1        while(1){
+ 141   2          temperature();
+ 142   2          //Move();
+ 143   2          //Crying();
+ 144   2          //LCD_println("ABCDE");
+ 145   2        }
+ 146   1      }
+ 147          
+ 148          
+ 149          
+ 150          void Font_test(void) {
+ 151   1        int x=1234;
+ 152   1        LCD_fillScreen(BLACK);
+ 153   1        LCD_print2C(20,30,"abcd",1,WHITE,BLACK);
+ 154   1        LCD_print2C(80,30,"xyz",2,WHITE,BLACK);
+ 155   1        LCD_printC(20,60,"3.95' ILI9488 320X480",3,YELLOW);
+ 156   1        LCD_printC(20,120,"Test 2017-11-23",3,GREEN);
+ 157   1        LCD_println("");
+ 158   1        LCD_setTextSize(2);
+ 159   1        LCD_setText1Color(WHITE);
+ 160   1        LCD_println("ABCDabcd1234");
+ 161   1        LCD_println("~!@#$%^&*()_+{}:<>?/|-+.");
+ 162   1        LCD_setTextSize(2);
+ 163   1        LCD_setText1Color(YELLOW);
+ 164   1        LCD_printHebln("אבגדהוזחטיכלמנסעפצקרשת");
+ 165   1        LCD_println("ABCDE");
+ 166   1        printf("x=%d  \n",x);
+ 167   1        printf("abcdABCD1234",x);
+ 168   1        while(T_IRQ);
+ 169   1      }
+ 170          
+ 171          
+ 172          
+ 173          //printf("Enter the maximum time in seconds: ");  /??
+ 174          
+ 175          
+ 176          
+C51 COMPILER V9.57.0.0   MAIN                                                              04/27/2023 09:53:39 PAGE 4   
+
+ 177          sbit senMove=P1^0;                         //   MOVE  CODE
+ 178          
+ 179          void Move(void) {
+ 180   1        int cnt=0, numSec=0;
+ 181   1        numSec=15000; // ?
+ 182   1        
+ 183   1      while(1)
+ 184   1      {
+ 185   2        cnt++;
+ 186   2        delay_ms(1000);
+ 187   2        if (senMove=='0')
+ 188   2          printf(" _ ");
+ 189   2          if (senMove=='1')
+ 190   2          printf(" @ ");
+ 191   2        
+ 192   2        if ((senMove=='0') && (cnt==15)){
+ 193   3        //if (cnt==15){
+ 194   3          break;
+ 195   3        }
+ 196   2        if((senMove=='1') && (cnt==15)){
+ 197   3          break;
+ 198   3        }
+ 199   2      }
+ 200   1        if (senMove=='1')
+ 201   1        {
+ 202   2          LCD_print2C (0 ,280 ,"detect the movement !",3, WHITE, BLACK);
+ 203   2          //printf("detect the movement !");
+ 204   2          SetTarget(1);   
+ 205   2          printf("**0528606455");    // Yuval
+ 206   2          delay_ms(1000);
+ 207   2          printf("##detect the movement !");
+ 208   2          delay_ms(1000);
+ 209   2          printf("$$");
+ 210   2          delay_ms(1000);
+ 211   2          printf("&&");
+ 212   2          delay_ms(1000);
+ 213   2          printf("**0546224328");  // Enni
+ 214   2          delay_ms(1000);
+ 215   2          printf("##detect the movement !");
+ 216   2          delay_ms(1000);
+ 217   2          printf("$$");
+ 218   2          delay_ms(1000);
+ 219   2          printf("&&");
+ 220   2          delay_ms(1000);
+ 221   2          SetTarget(0);                       
+ 222   2          MenuScreen();
+ 223   2          cnt=0;
+ 224   2            }
+ 225   1        Crying();
+ 226   1          }
+ 227            //while(T_IRQ);
+ 228             
+ 229            
+ 230          
+ 231          
+ 232          
+ 233          
+ 234          
+ 235          
+ 236          // P2.0 num=0,P2.1 num=1,P2.2 num=2,P2.3 num=3,P2.5 num=4,P2.6 num=5,P3.0 num=6,P3.1 num=7,P3.4 num=8,P3.5
+             - num=9,           
+ 237          // P3.7 num=10,P4.0 num=11,P4.3 num=12,P4.4 num=13,P4.5 num=14,P4.6 num=15
+C51 COMPILER V9.57.0.0   MAIN                                                              04/27/2023 09:53:39 PAGE 5   
+
+ 238          // P0.3 num=17, P0.4 num=18,P1.1 num=19, P1.2 num=20, P1.0 num=21, P1.3 num=22, P1.6 num=23, P1.7 num=24,
+ 239          //  P2.4 num=25, P2.7 num=26, P3.2 num=27, P3.3 num=28, P3.6 num=29, P4.1 num=32, P4.2 num=33, P4.7 num=34
+ 240          // Temp Sensor num=30, VDD   num=31
+ 241          
+ 242          int ADC_IN(int num)
+ 243          {
+ 244   1        AMX0N     = 0x1F;// negtive input= GND
+ 245   1        AMX0P=num;
+ 246   1        delay_us(1);
+ 247   1        AD0BUSY=1; // start conversion 
+ 248   1        while(!AD0INT); // wait end convesion 
+ 249   1        AD0INT = 0;   // clear ADC0 conversion complete flag 
+ 250   1        return (ADC0);
+ 251   1      }
+ 252          
+ 253          
+ 254              float CalcTemp(int digVal)
+ 255            {
+ 256   1          float temp, analog_val;
+ 257   1          //analog_val=((float)digVal*100);
+ 258   1          // 2->  analog_val=((float)digVal*3.3/1024)*0.01;
+ 259   1          analog_val=((float)digVal/1024)*3.3;
+ 260   1          // 2->  temp=analog_val;
+ 261   1          temp=analog_val/0.01;
+ 262   1          //temp=analog_val;
+ 263   1          return temp;
+ 264   1        }
+ 265          
+ 266          void temperature(void) {                              //  TEMPERATURE  CODE
+ 267   1        int val;
+ 268   1        while(1)
+ 269   1        {
+ 270   2          float temp;
+ 271   2          val=ADC_IN(READ_FROM_TEMP);
+ 272   2          temp=CalcTemp(val);
+ 273   2          LCD_fillScreen(RED);
+ 274   2          LCD_setCursor (10, 0);
+ 275   2          printf("the temperature in the room is:\n %f \n", temp);
+ 276   2          if (temp>29){
+ 277   3            printf("the temperature is too high !");
+ 278   3            SetTarget(1);   // before sending to BT switch printf to uart
+ 279   3           //printf("**0522547704");
+ 280   3            printf("**0546224328");     // Enni
+ 281   3            delay_ms(1000);
+ 282   3            printf("##the temperature is too high !");
+ 283   3            delay_ms(1000);
+ 284   3            printf("$$");
+ 285   3            delay_ms(1000);
+ 286   3            printf("&&");
+ 287   3            delay_ms(1000);
+ 288   3            printf("**0528606455");    // Yuval
+ 289   3            delay_ms(1000);
+ 290   3            printf("##the temperature is too high !");
+ 291   3            delay_ms(1000);
+ 292   3            printf("$$");
+ 293   3            delay_ms(1000);
+ 294   3            printf("&&");
+ 295   3            delay_ms(1000);
+ 296   3            SetTarget(0);
+ 297   3            MenuScreen();
+ 298   3          }
+ 299   2          if (temp<25){
+C51 COMPILER V9.57.0.0   MAIN                                                              04/27/2023 09:53:39 PAGE 6   
+
+ 300   3            printf("the temperature is too low !");
+ 301   3            SetTarget(1); 
+ 302   3            printf("**0546224328");          // Enni
+ 303   3            delay_ms(1000);
+ 304   3            printf("##the temperature is too low !");
+ 305   3            delay_ms(1000);
+ 306   3            printf("$$");
+ 307   3            delay_ms(1000);
+ 308   3            printf("&&");
+ 309   3            delay_ms(1000);    
+ 310   3            printf("**0528606455");      // Yuval
+ 311   3            delay_ms(1000);
+ 312   3            printf("##the temperature is too low !");
+ 313   3            delay_ms(1000);
+ 314   3            printf("$$");
+ 315   3            delay_ms(1000);
+ 316   3            printf("&&");
+ 317   3            delay_ms(1000);        
+ 318   3            SetTarget(0);
+ 319   3            MenuScreen();
+ 320   3          }
+ 321   2          Move();
+ 322   2             //MenuScreen();         
+ 323   2          //while(T_IRQ);
+ 324   2         }
+ 325   1      }
+ 326          
+ 327          
+ 328          
+ 329          
+ 330          int IsAlarmDetected2()
+ 331          {
+ 332   1        int mag_temp,detect;
+ 333   1        int j,i;
+ 334   1        int k=0;
+ 335   1        num=0;
+ 336   1        LCD_fillScreen(BLACK);
+ 337   1        for(j=0;j<NUM_OF_FREQ_TO_CHECK;j++)
+ 338   1        {
+ 339   2          NumInstans[j] = 0;  
+ 340   2        }
+ 341   1        for(j=0;j<600/NUM_OF_FREQ_TO_CHECK;j++)
+ 342   1        {   
+ 343   2          for(i=0;i<205;i++)   
+ 344   2           { 
+ 345   3              data_in[i]=2*ADC_IN(20);  //P1.2 num=20
+ 346   3              delay_us(112);//dt sample
+ 347   3              
+ 348   3           }  
+ 349   2      
+ 350   2          for(i=0;i<NUM_OF_FREQ_TO_CHECK;i++)
+ 351   2           {
+ 352   3             mag_temp=(int)(goertzel_mag(205,wave_property_arr[i].freq,8000));
+ 353   3             k++; 
+ 354   3            //sprintf(my_string,"m=%3d f=%3d i=%d",mag_temp,wave_property_arr[i].freq,NumInstans[i]);
+ 355   3      if ((k%20==0) || (k%20==1))
+ 356   3      {
+ 357   4             
+ 358   4            LCD_setCursor (10, 100);
+ 359   4            if (i==0) 
+ 360   4            {  
+ 361   5              LCD_setCursor (10, 0);
+C51 COMPILER V9.57.0.0   MAIN                                                              04/27/2023 09:53:39 PAGE 7   
+
+ 362   5              printf("m=%3d f=%3d i=%d",mag_temp,wave_property_arr[i].freq,NumInstans[i]);
+ 363   5            }
+ 364   4      
+ 365   4            if (i==1) 
+ 366   4            {  
+ 367   5              LCD_setCursor (10,100);
+ 368   5              printf("m=%3d f=%3d i=%d",mag_temp,wave_property_arr[i].freq,NumInstans[i]);
+ 369   5            }
+ 370   4      
+ 371   4            if (i==2) 
+ 372   4            {  
+ 373   5              LCD_setCursor (10, 200);
+ 374   5              printf("m=%3d f=%3d i=%d",mag_temp,wave_property_arr[i].freq,NumInstans[i]);
+ 375   5            }
+ 376   4            
+ 377   4            if (i==3) 
+ 378   4            {  
+ 379   5              LCD_setCursor (10, 200);
+ 380   5              printf("m=%3d f=%3d i=%d",mag_temp,wave_property_arr[i].freq,NumInstans[i]);
+ 381   5            }
+ 382   4          
+ 383   4      }         
+ 384   3             
+ 385   3          //   if (i==1) LCD_print2C(20,100,my_string,2,RED, BLACK);
+ 386   3          //   if (i==2) LCD_print2C(20,200,my_string,2,RED, BLACK);
+ 387   3                 
+ 388   3      //       if (i==0) lcd_string_line(1,0,my_string);
+ 389   3      //       if (i==1) lcd_string_line(2,0,my_string);
+ 390   3      //       if (i==2) lcd_string_line(1,0,my_string);
+ 391   3      //       wait_ms(50);        
+ 392   3             if (mag_temp > wave_property_arr[i].Th_mag)
+ 393   3             {
+ 394   4               NumInstans[i]++;
+ 395   4             }
+ 396   3           }
+ 397   2           
+ 398   2         }
+ 399   1         
+ 400   1         detect=1;
+ 401   1         for(i=0;i<NUM_OF_FREQ_TO_CHECK;i++)
+ 402   1         {
+ 403   2           if (NumInstans[i] < wave_property_arr[i].Th_NumInstans)
+ 404   2           {
+ 405   3              detect = 0 ;
+ 406   3              break;
+ 407   3           }       
+ 408   2         }
+ 409   1         return(detect);
+ 410   1      }
+ 411          
+ 412          
+ 413          
+ 414          
+ 415          
+ 416          float goertzel_mag(int numSamples,int TARGET_FREQUENCY,int SAMPLING_RATE)
+ 417          {
+ 418   1      
+ 419   1        int     k,i;
+ 420   1        float analog;
+ 421   1        float   floatnumSamples;
+ 422   1        float   omega,sine,cosine,coeff,q0,q1,q2,magnitude,real,imag;
+ 423   1        float   scalingFactor = numSamples / 2.0;
+C51 COMPILER V9.57.0.0   MAIN                                                              04/27/2023 09:53:39 PAGE 8   
+
+ 424   1      
+ 425   1        floatnumSamples = (float) numSamples;
+ 426   1        k = (int) (0.5 + ((floatnumSamples * TARGET_FREQUENCY) / SAMPLING_RATE));
+ 427   1        omega = (2.0 * 3.14 * k) / floatnumSamples;
+ 428   1        sine = sin(omega);
+ 429   1        cosine = cos(omega);
+ 430   1        coeff = 2.0 * cosine;
+ 431   1        q0=0;
+ 432   1        q1=0;
+ 433   1        q2=0;
+ 434   1      
+ 435   1        for(i=0; i<numSamples; i++)
+ 436   1        {
+ 437   2          analog=data_in[i];
+ 438   2          q0 = coeff * q1 - q2 + analog;
+ 439   2          q2 = q1;
+ 440   2          q1 = q0;
+ 441   2        }
+ 442   1      
+ 443   1        // calculate the real and imaginary results
+ 444   1        // scaling appropriately
+ 445   1        real = (q1 - q2 * cosine) / scalingFactor;
+ 446   1        imag = (q2 * sine) / scalingFactor;
+ 447   1      
+ 448   1        magnitude = sqrt(real*real + imag*imag);
+ 449   1      
+ 450   1        return magnitude;
+ 451   1      }
+ 452          
+ 453          
+ 454          
+ 455          
+ 456          void Crying(void) {                               //   Crying  CODE
+ 457   1          int status;
+ 458   1         int cnt=0, numSec=15000;   
+ 459   1        LCD_fillScreen(RED);
+ 460   1        delay_ms(100);
+ 461   1        //LCD_print2C(0 ,50 ,"voice",3, WHITE, BLACK);
+ 462   1        while(1)
+ 463   1        {
+ 464   2          status = IsAlarmDetected2();
+ 465   2          cnt++;
+ 466   2          delay_ms(1000);
+ 467   2          if ((status==0) && (cnt==15))
+ 468   2          //if (cnt==15)
+ 469   2            break;
+ 470   2          if (status==1)
+ 471   2            break;
+ 472   2        }
+ 473   1          if (status==1)
+ 474   1          {     
+ 475   2            printf("\nThe baby is crying !\n");  //print the message
+ 476   2            SetTarget(1); 
+ 477   2            printf("**0546224328");  //send SMS to Enni
+ 478   2            delay_ms(1000);
+ 479   2            printf("##The baby is crying !");
+ 480   2            delay_ms(1000);
+ 481   2            printf("$$");
+ 482   2            delay_ms(1000);
+ 483   2            printf("&&");
+ 484   2            delay_ms(1000);
+ 485   2            printf("**0528606455");  //send SMS to Yuval
+C51 COMPILER V9.57.0.0   MAIN                                                              04/27/2023 09:53:39 PAGE 9   
+
+ 486   2            delay_ms(1000);
+ 487   2            printf("##The baby is crying !");
+ 488   2            delay_ms(1000);
+ 489   2            printf("$$");
+ 490   2            delay_ms(1000);
+ 491   2            printf("&&");
+ 492   2            delay_ms(1000);
+ 493   2            SetTarget(0);
+ 494   2            MenuScreen();
+ 495   2            play_song(1,1);    //start playing the lullaby
+ 496   2            LCD_setCursor (10,140);
+ 497   2            delay_ms(360000); // 6 minutes
+ 498   2            play_song(1,2); 
+ 499   2            LCD_setCursor (10,140);
+ 500   2            delay_ms(360000);
+ 501   2            play_song(1,3); 
+ 502   2            LCD_setCursor (10,140);
+ 503   2            delay_ms(360000);
+ 504   2            play_song(1,4); 
+ 505   2            LCD_setCursor (10,140);
+ 506   2            delay_ms(360000);
+ 507   2            play_song(1,5);
+ 508   2            LCD_setCursor (10,140);
+ 509   2            delay_ms(360000);
+ 510   2          }
+ 511   1          cnt=0;  
+ 512   1      }
+ 513          
+ 514          
+ 515          
+ 516          
+ 517          
+ 518          //int j=1;
+ 519          void mp3()                          //   MP3   CODE  
+ 520          {
+ 521   1        LCD_fillScreen(BLACK);
+ 522   1        LCD_setCursor (10,100);
+ 523   1        printf("press touch to play\n");
+ 524   1        while(T_IRQ);
+ 525   1        
+ 526   1        play_song(1,1); 
+ 527   1        LCD_setCursor (10,140);
+ 528   1        delay_ms(360000);  // 6 minutes
+ 529   1        printf("press to start playing the lullaby \n");
+ 530   1        play_song(1,2); 
+ 531   1        LCD_setCursor (10,140);
+ 532   1        delay_ms(360000);
+ 533   1        printf("press to start playing the lullaby \n");
+ 534   1        play_song(1,3); 
+ 535   1        LCD_setCursor (10,140);
+ 536   1        delay_ms(360000);
+ 537   1        printf("press to start playing the lullaby \n");
+ 538   1        play_song(1,4); 
+ 539   1        LCD_setCursor (10,140);
+ 540   1        delay_ms(360000);
+ 541   1        printf("press to start playing the lullaby \n");
+ 542   1        play_song(1,5);
+ 543   1        LCD_setCursor (10,140);
+ 544   1        delay_ms(360000);
+ 545   1        printf("press to start playing the lullaby \n");
+ 546   1        
+ 547   1        while(T_IRQ);
+C51 COMPILER V9.57.0.0   MAIN                                                              04/27/2023 09:53:39 PAGE 10  
+
+ 548   1        MenuScreen();
+ 549   1      }
+ 550          
+ 551          
+ 552           
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   4090    ----
+   CONSTANT SIZE    =   2133    ----
+   XDATA SIZE       =    484      80
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
